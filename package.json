@@ -4,7 +4,7 @@
   "description": "Botan nodejs binding",
   "main": "index.js",
   "scripts": {
-    "test": "mocha -r should"
+    "test": "mocha -r should -t 10000"
   },
   "keywords": [
     "botan",

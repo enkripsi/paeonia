@@ -2,8 +2,8 @@
 #include "sync.h"
 
 NAN_MODULE_INIT(InitAll) {
-  Nan::Set(target, Nan::New<v8::String>("randomizeSync").ToLocalChecked(),
-      Nan::GetFunction(Nan::New<v8::FunctionTemplate>(RandomizeSync)).ToLocalChecked()
+  Nan::Set(target, Nan::New<v8::String>("generateKeysSync").ToLocalChecked(),
+      Nan::GetFunction(Nan::New<v8::FunctionTemplate>(GenerateKeysSync)).ToLocalChecked()
       );
 }
 
