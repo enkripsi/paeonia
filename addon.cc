@@ -1,9 +1,9 @@
 #include <nan.h>
-#include "sync.h"
+#include "pk.h"
 
 NAN_MODULE_INIT(InitAll) {
-  Nan::Set(target, Nan::New<v8::String>("generateKeysSync").ToLocalChecked(),
-      Nan::GetFunction(Nan::New<v8::FunctionTemplate>(GenerateKeysSync)).ToLocalChecked()
+  Nan::Set(target, Nan::New<v8::String>("generateKeys").ToLocalChecked(),
+      Nan::GetFunction(Nan::New<v8::FunctionTemplate>(GenerateKeys)).ToLocalChecked()
       );
 }
 

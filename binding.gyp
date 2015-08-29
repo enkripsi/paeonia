@@ -9,7 +9,8 @@
       'cflags_cc!': [ '-fno-exceptions', '-fno-rtti' ],
       "sources": [
         "addon.cc",
-        "sync.cc"
+        "sync.cc",
+        "pk.cc"
       ],
       "include_dirs": [
         "<!(node -e \"require('nan')\")"
