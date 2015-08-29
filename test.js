@@ -1,12 +1,11 @@
-var paeonia = require('bindings')('paeonia.node')
+var Paeonia = require('bindings')('paeonia.node')
 
 describe('Paeonia', function() {
-  it('should randomize', function(done) {
-    paeonia.generateKeys(4096, function(err, keys) {
-      if (err)
-        return done(err);
-      console.log(keys);
-      done();
+  it('should generate RSA key pair', function(done) {
+    var rsaPubKey = new Paeonia.RSAPubKey(4096);
+    rsaPubKey.generateKeyPair(function(err) {
+      rsaPubKey.encode().length.should.above(0);
+      done(err);     
     });
   });
 });

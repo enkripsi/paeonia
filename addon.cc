@@ -1,10 +1,8 @@
 #include <nan.h>
-#include "pk.h"
+#include "rsa_pubkey.h"
 
-NAN_MODULE_INIT(InitAll) {
-  Nan::Set(target, Nan::New<v8::String>("generateKeys").ToLocalChecked(),
-      Nan::GetFunction(Nan::New<v8::FunctionTemplate>(GenerateKeys)).ToLocalChecked()
-      );
+void InitAll(v8::Local<v8::Object> exports) {
+  paeonia::RSAPubKey::Init(exports);
 }
 
 NODE_MODULE(paeonia, InitAll)
