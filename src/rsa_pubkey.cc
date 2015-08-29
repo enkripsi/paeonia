@@ -8,6 +8,12 @@
 
 #include <iostream>
 
+inline std::string to_upper(std::string str)
+{
+    std::transform(str.begin(), str.end(), str.begin(), ::toupper);
+    return str;
+}
+
 namespace paeonia {
 
 class GenerateKeyPairWorker : public Nan::AsyncWorker {
@@ -102,11 +108,42 @@ void RSAPubKey::GenerateKeyPair(const Nan::FunctionCallbackInfo<v8::Value>& info
   Nan::AsyncQueueWorker(new GenerateKeyPairWorker(callback, obj->keySize, *obj));
 }
 
-void RSAPubKey::Encode(const Nan::FunctionCallbackInfo<v8::Value>& info) {
-  // should accept options object: { password: '', encode: 'BER' or 'DER'}, if password is provided, then it needs to serialize privateKey
-  RSAPubKey* obj = Nan::ObjectWrap::Unwrap<RSAPubKey>(info.Holder());
+void RSAPubKey::GetEncodedPublicKey(const Nan::FunctionCallbackInfo<v8::Value>& info, const RSAPubKey* obj, const std::string& encoding) {
   std::string publicKeyString = Botan::X509::PEM_encode(*obj->key);
   info.GetReturnValue().Set(Nan::New((char*) publicKeyString.c_str(), publicKeyString.size()).ToLocalChecked());
+}
+
+void RSAPubKey::Encode(const Nan::FunctionCallbackInfo<v8::Value>& info) {
+  // should accept options object: { password: '', encoding: 'BER' or 'PEM'}, if password is provided, then it needs to serialize privateKey
+  RSAPubKey* obj = Nan::ObjectWrap::Unwrap<RSAPubKey>(info.Holder());
+  
+  if (info.Length() > 0 && !info[0]->IsObject()) {
+    Nan::ThrowTypeError("Option should be an object.");
+    return;
+  }
+  
+  if (!info.Length()) {
+    GetEncodedPublicKey(info, obj);
+    return;
+  }
+
+  v8::Local<v8::Object> option = info[0]->ToObject();
+  v8::Local<v8::Value> password = Nan::Get(option, Nan::New("password").ToLocalChecked()).ToLocalChecked();
+  v8::Local<v8::Value> encoding = Nan::Get(option, Nan::New("encoding").ToLocalChecked()).ToLocalChecked();
+  
+  std::string passwordString(*v8::String::Utf8Value(Nan::To<v8::String>(password).ToLocalChecked()));
+  std::string encodingString(*v8::String::Utf8Value(Nan::To<v8::String>(encoding).ToLocalChecked()));
+  encodingString = to_upper(encodingString);
+
+  if (password->IsUndefined()) {
+    GetEncodedPublicKey(info, obj, encodingString);
+    return;
+  }
+
+  std::string keyString;
+  keyString = passwordString != "" ? Botan::PKCS8::PEM_encode(*obj->key, *obj->rng, passwordString) : Botan::PKCS8::PEM_encode(*obj->key);
+  keyString.append(Botan::X509::PEM_encode(*obj->key));
+  info.GetReturnValue().Set(Nan::New((char*) keyString.c_str(), keyString.size()).ToLocalChecked()); 
 }
 
 };

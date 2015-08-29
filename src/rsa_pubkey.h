@@ -25,6 +25,8 @@ class RSAPubKey : public Nan::ObjectWrap {
     static void New(const Nan::FunctionCallbackInfo<v8::Value>& info);
     static void GenerateKeyPair(const Nan::FunctionCallbackInfo<v8::Value>& info);
     static void Encode(const Nan::FunctionCallbackInfo<v8::Value>& info);
+
+    static void GetEncodedPublicKey(const Nan::FunctionCallbackInfo<v8::Value>& info, const RSAPubKey* obj, const std::string& encoding = "PEM");
     
     static Nan::Persistent<v8::Function> constructor;
 
