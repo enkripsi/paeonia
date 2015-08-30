@@ -14,6 +14,7 @@ class GenerateKeyPairWorker;
 class RSAPubKey : public Nan::ObjectWrap {
   
   friend class GenerateKeyPairWorker;
+  friend class LoadKeyWorker;
 
   public:
     static void Init(v8::Local<v8::Object> exports);
@@ -25,6 +26,9 @@ class RSAPubKey : public Nan::ObjectWrap {
     static void New(const Nan::FunctionCallbackInfo<v8::Value>& info);
     static void GenerateKeyPair(const Nan::FunctionCallbackInfo<v8::Value>& info);
     static void Encode(const Nan::FunctionCallbackInfo<v8::Value>& info);
+    static void LoadPublicKey(const Nan::FunctionCallbackInfo<v8::Value>& info);
+    static void LoadPrivateKey(const Nan::FunctionCallbackInfo<v8::Value>& info);
+    static void Encrypt(const Nan::FunctionCallbackInfo<v8::Value>& info);
 
     static void GetEncodedPublicKey(const Nan::FunctionCallbackInfo<v8::Value>& info, const RSAPubKey* obj, const std::string& encoding = "PEM");
     
@@ -32,8 +36,11 @@ class RSAPubKey : public Nan::ObjectWrap {
 
   private:
     size_t keySize;
-    Botan::RSA_PrivateKey* key;
+    // Botan::RSA_PrivateKey* key;
+    Botan::Public_Key* key;
     Botan::ANSI_X931_RNG* rng;
+
+    Botan::Public_Key* pubKey;
 };
 
 };

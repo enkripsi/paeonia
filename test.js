@@ -4,10 +4,14 @@ describe('Paeonia', function() {
   it('should generate RSA key pair', function(done) {
     var rsaPubKey = new Paeonia.RSAPubKey(4096);
     rsaPubKey.generateKeyPair(function(err) {
-      var pub = rsaPubKey.encode({password: '', encoding: 'PEM'});
-      pub.indexOf('PRIVATE').should.not.be.equal(-1);
+      var pub = rsaPubKey.encode({encoding: 'PEM'});
       pub.indexOf('PUBLIC').should.not.be.equal(-1);
+      console.log(pub);
       done(err);     
     });
+  });
+  it('should load an RSA public key', function(done) {
+    var rsaPubKey = new Paeonia.RSAPubKey(4096);
+    rsaPubKey.loadPublicKey(__dirname + '/data/pub.txt', done);
   });
 });

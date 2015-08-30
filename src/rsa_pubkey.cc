@@ -8,13 +8,48 @@
 
 #include <iostream>
 
+namespace paeonia {
+
 inline std::string to_upper(std::string str)
 {
-    std::transform(str.begin(), str.end(), str.begin(), ::toupper);
-    return str;
+  std::transform(str.begin(), str.end(), str.begin(), ::toupper);
+  return str;
 }
 
-namespace paeonia {
+class LoadKeyWorker : public Nan::AsyncWorker {
+  public:
+    LoadKeyWorker(
+        Nan::Callback* callback,
+        const std::string& path,
+        RSAPubKey& pubKey
+        )
+      : Nan::AsyncWorker(callback), path(path), pubKey(pubKey)
+    {}
+  
+  void Execute() {
+    try {
+      auto key = Botan::X509::load_key(path);
+      std::cout << key->max_input_bits() << std::endl;
+      pubKey.pubKey = key;
+      auto a = dynamic_cast<Botan::RSA_PublicKey*>(key);
+      auto b = dynamic_cast<Botan::RSA_PrivateKey*>(key);
+      std::cout << "-> " << a << " - " << b << std::endl;
+    } catch (std::exception& e) {
+      SetErrorMessage(e.what());
+    }
+  }
+
+  void HandleOKCallback() {
+    v8::Local<v8::Value> argv[] = {
+      Nan::Null()
+    };
+    callback->Call(1, argv);  
+  }
+
+  private:
+    std::string path;
+    RSAPubKey& pubKey;
+};
 
 class GenerateKeyPairWorker : public Nan::AsyncWorker {
   public:
@@ -83,6 +118,7 @@ void RSAPubKey::Init(v8::Local<v8::Object> exports) {
   // prototypes here
   Nan::SetPrototypeMethod(tpl, "generateKeyPair", GenerateKeyPair);
   Nan::SetPrototypeMethod(tpl, "encode", Encode);
+  Nan::SetPrototypeMethod(tpl, "loadPublicKey", LoadPublicKey);
 
   constructor.Reset(tpl->GetFunction());
   exports->Set(Nan::New("RSAPubKey").ToLocalChecked(), tpl->GetFunction());
@@ -141,9 +177,34 @@ void RSAPubKey::Encode(const Nan::FunctionCallbackInfo<v8::Value>& info) {
   }
 
   std::string keyString;
-  keyString = passwordString != "" ? Botan::PKCS8::PEM_encode(*obj->key, *obj->rng, passwordString) : Botan::PKCS8::PEM_encode(*obj->key);
-  keyString.append(Botan::X509::PEM_encode(*obj->key));
+  auto privateKey = dynamic_cast<Botan::Private_Key*>(obj->key);
+  
+  if (!privateKey) {
+    info.GetReturnValue().SetUndefined();
+    return;
+  }
+
+  keyString = passwordString != "" ? Botan::PKCS8::PEM_encode(*privateKey, *obj->rng, passwordString) : Botan::PKCS8::PEM_encode(*privateKey);
+  keyString.append(Botan::X509::PEM_encode(*privateKey));
   info.GetReturnValue().Set(Nan::New((char*) keyString.c_str(), keyString.size()).ToLocalChecked()); 
+}
+
+void RSAPubKey::LoadPublicKey(const Nan::FunctionCallbackInfo<v8::Value>& info) {
+  // from buffer or from path using the load_key
+  RSAPubKey* obj = Nan::ObjectWrap::Unwrap<RSAPubKey>(info.Holder());
+  std::string path(*v8::String::Utf8Value(info[0]->ToString()));
+  Nan::Callback *callback = new Nan::Callback(info[1].As<v8::Function>());
+  Nan::AsyncQueueWorker(new LoadKeyWorker(callback, path, *obj));
+}
+
+void RSAPubKey::LoadPrivateKey(const Nan::FunctionCallbackInfo<v8::Value>& info) {
+  // from buffer or from path
+}
+
+void RSAPubKey::Encrypt(const Nan::FunctionCallbackInfo<v8::Value>& info) {
+  // from buffer or from path
+  // load public key or generate key pair
+  // do encrypt buffer or string
 }
 
 };
