@@ -1,11 +1,5 @@
 #include "rsa_pubkey.h"
 
-#include <botan/block_cipher.h>
-#include <botan/aes_ssse3.h>
-#include <botan/aes_ni.h>
-#include <botan/cpuid.h>
-#include <botan/aes.h>
-
 #include <iostream>
 
 namespace paeonia {
@@ -20,21 +14,39 @@ class LoadKeyWorker : public Nan::AsyncWorker {
   public:
     LoadKeyWorker(
         Nan::Callback* callback,
-        const std::string& path,
-        RSAPubKey& pubKey
+        RSAPubKey& pubKey,
+        const std::string& publicKeyPath,
+        const std::string& privateKeyPath = "",
+        const std::string& password = ""
         )
-      : Nan::AsyncWorker(callback), path(path), pubKey(pubKey)
+      : Nan::AsyncWorker(callback), publicKeyPath(publicKeyPath), privateKeyPath(privateKeyPath), pubKey(pubKey)
     {}
   
   void Execute() {
     try {
-      auto publicKey = Botan::X509::load_key(path);
-      if (publicKey) {
+      if (publicKeyPath.size() > 0) {
+        auto publicKey = Botan::X509::load_key(publicKeyPath);
+        if (!publicKey) {
+          SetErrorMessage("Cannot load public key.");
+          return;
+        }
         pubKey.publicKey = dynamic_cast<Botan::RSA_PublicKey*>(publicKey);
         pubKey.keySize = publicKey->max_input_bits() + 1;
       }
-      else {
-        SetErrorMessage("Cannot load public key.");
+
+      if (privateKeyPath.size() > 0) {
+        if (!pubKey.rng) {
+          pubKey.rng = Botan::AutoSeeded_RNG::make_rng();
+        }
+        auto privateKey = Botan::PKCS8::load_key(privateKeyPath, *pubKey.rng, password);
+        if (!privateKey) {
+          SetErrorMessage("Cannot load private key.");
+          return;
+        }
+        pubKey.privateKey = dynamic_cast<Botan::RSA_PrivateKey*>(privateKey);
+        if (!pubKey.publicKey && publicKeyPath.size() == 0) {
+          pubKey.keySize = privateKey->max_input_bits() + 1;
+        }
       }
     } catch (std::exception& e) {
       SetErrorMessage(e.what());
@@ -49,7 +61,9 @@ class LoadKeyWorker : public Nan::AsyncWorker {
   }
 
   private:
-    std::string path;
+    std::string publicKeyPath;
+    std::string privateKeyPath;
+    std::string password;
     RSAPubKey& pubKey;
 };
 
@@ -57,26 +71,20 @@ class GenerateKeyPairWorker : public Nan::AsyncWorker {
   public:
     GenerateKeyPairWorker(
         Nan::Callback* callback,
-        size_t keySize,
-        RSAPubKey& pubKey
+        RSAPubKey& pubKey,
+        size_t keySize = 4096
         )
       : Nan::AsyncWorker(callback), keySize(keySize), pubKey(pubKey)
     {}
 
     void Execute() {
       try {
-        // maybe we should just use AutoRandomGenerator
-        Botan::Block_Cipher_Fixed_Params<16, 16>* AES;
-        if (Botan::CPUID::has_aes_ni()) {
-          AES = new Botan::AES_128_NI();
+        if (!pubKey.rng) {
+          pubKey.rng = Botan::AutoSeeded_RNG::make_rng();
         }
-        else if (Botan::CPUID::has_ssse3()) {
-          AES = new Botan::AES_128_SSSE3();
+        if (pubKey.privateKey) {
+          delete pubKey.privateKey;
         }
-        else { 
-          AES = new Botan::AES_128();
-        }
-        pubKey.rng = new Botan::ANSI_X931_RNG(AES, Botan::RandomNumberGenerator::make_rng());
         pubKey.privateKey = new Botan::RSA_PrivateKey(*pubKey.rng, keySize);
         pubKey.publicKey = dynamic_cast<Botan::RSA_PublicKey*>(pubKey.privateKey);
       } catch (std::exception& e) {
@@ -101,7 +109,7 @@ class GenerateKeyPairWorker : public Nan::AsyncWorker {
 Nan::Persistent<v8::Function> RSAPubKey::constructor;
 
 RSAPubKey::RSAPubKey(size_t keySize) 
-  : keySize(keySize) {}
+  : keySize(keySize), publicKey(NULL), privateKey(NULL), rng(NULL) {}
 
 RSAPubKey::~RSAPubKey() {
   if (publicKey) {
@@ -148,7 +156,7 @@ void RSAPubKey::New(const Nan::FunctionCallbackInfo<v8::Value>& info) {
 void RSAPubKey::GenerateKeyPair(const Nan::FunctionCallbackInfo<v8::Value>& info) {
   RSAPubKey* obj = Nan::ObjectWrap::Unwrap<RSAPubKey>(info.Holder());
   Nan::Callback *callback = new Nan::Callback(info[0].As<v8::Function>());
-  Nan::AsyncQueueWorker(new GenerateKeyPairWorker(callback, obj->keySize, *obj));
+  Nan::AsyncQueueWorker(new GenerateKeyPairWorker(callback, *obj, obj->keySize));
 }
 
 void RSAPubKey::GetEncodedPublicKey(const Nan::FunctionCallbackInfo<v8::Value>& info, const RSAPubKey* obj, const std::string& encoding) {
@@ -203,7 +211,7 @@ void RSAPubKey::LoadPublicKey(const Nan::FunctionCallbackInfo<v8::Value>& info) 
   RSAPubKey* obj = Nan::ObjectWrap::Unwrap<RSAPubKey>(info.Holder());
   std::string path(*v8::String::Utf8Value(info[0]->ToString()));
   Nan::Callback *callback = new Nan::Callback(info[1].As<v8::Function>());
-  Nan::AsyncQueueWorker(new LoadKeyWorker(callback, path, *obj));
+  Nan::AsyncQueueWorker(new LoadKeyWorker(callback, *obj, path));
 }
 
 void RSAPubKey::LoadPrivateKey(const Nan::FunctionCallbackInfo<v8::Value>& info) {

@@ -2,7 +2,7 @@
 #define PAEONIA_PUBKEY_H
 
 #include <nan.h>
-#include <botan/x931_rng.h>
+#include <botan/auto_rng.h>
 #include <botan/pk_keys.h>
 #include <botan/pkcs8.h>
 #include <botan/rsa.h>
@@ -38,7 +38,7 @@ class RSAPubKey : public Nan::ObjectWrap {
     size_t keySize;
     Botan::RSA_PublicKey* publicKey;
     Botan::RSA_PrivateKey* privateKey;
-    Botan::ANSI_X931_RNG* rng;
+    Botan::RandomNumberGenerator* rng;
 };
 
 };
