@@ -36,11 +36,9 @@ class RSAPubKey : public Nan::ObjectWrap {
 
   private:
     size_t keySize;
-    // Botan::RSA_PrivateKey* key;
-    Botan::Public_Key* key;
+    Botan::RSA_PublicKey* publicKey;
+    Botan::RSA_PrivateKey* privateKey;
     Botan::ANSI_X931_RNG* rng;
-
-    Botan::Public_Key* pubKey;
 };
 
 };

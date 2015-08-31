@@ -28,12 +28,14 @@ class LoadKeyWorker : public Nan::AsyncWorker {
   
   void Execute() {
     try {
-      auto key = Botan::X509::load_key(path);
-      std::cout << key->max_input_bits() << std::endl;
-      pubKey.pubKey = key;
-      auto a = dynamic_cast<Botan::RSA_PublicKey*>(key);
-      auto b = dynamic_cast<Botan::RSA_PrivateKey*>(key);
-      std::cout << "-> " << a << " - " << b << std::endl;
+      auto publicKey = Botan::X509::load_key(path);
+      if (publicKey) {
+        pubKey.publicKey = dynamic_cast<Botan::RSA_PublicKey*>(publicKey);
+        pubKey.keySize = publicKey->max_input_bits() + 1;
+      }
+      else {
+        SetErrorMessage("Cannot load public key.");
+      }
     } catch (std::exception& e) {
       SetErrorMessage(e.what());
     }
@@ -63,6 +65,7 @@ class GenerateKeyPairWorker : public Nan::AsyncWorker {
 
     void Execute() {
       try {
+        // maybe we should just use AutoRandomGenerator
         Botan::Block_Cipher_Fixed_Params<16, 16>* AES;
         if (Botan::CPUID::has_aes_ni()) {
           AES = new Botan::AES_128_NI();
@@ -74,7 +77,8 @@ class GenerateKeyPairWorker : public Nan::AsyncWorker {
           AES = new Botan::AES_128();
         }
         pubKey.rng = new Botan::ANSI_X931_RNG(AES, Botan::RandomNumberGenerator::make_rng());
-        pubKey.key = new Botan::RSA_PrivateKey(*pubKey.rng, keySize);
+        pubKey.privateKey = new Botan::RSA_PrivateKey(*pubKey.rng, keySize);
+        pubKey.publicKey = dynamic_cast<Botan::RSA_PublicKey*>(pubKey.privateKey);
       } catch (std::exception& e) {
         SetErrorMessage(e.what());
       }
@@ -100,8 +104,11 @@ RSAPubKey::RSAPubKey(size_t keySize)
   : keySize(keySize) {}
 
 RSAPubKey::~RSAPubKey() {
-  if (key) {
-    delete key;
+  if (publicKey) {
+    delete publicKey;
+  }
+  if (privateKey) {
+    delete privateKey;
   }
   if (rng) {
     delete rng;
@@ -145,7 +152,11 @@ void RSAPubKey::GenerateKeyPair(const Nan::FunctionCallbackInfo<v8::Value>& info
 }
 
 void RSAPubKey::GetEncodedPublicKey(const Nan::FunctionCallbackInfo<v8::Value>& info, const RSAPubKey* obj, const std::string& encoding) {
-  std::string publicKeyString = Botan::X509::PEM_encode(*obj->key);
+  if (!obj->publicKey) {
+    info.GetReturnValue().SetUndefined();
+    return;
+  }
+  std::string publicKeyString = Botan::X509::PEM_encode(*obj->publicKey);
   info.GetReturnValue().Set(Nan::New((char*) publicKeyString.c_str(), publicKeyString.size()).ToLocalChecked());
 }
 
@@ -177,15 +188,13 @@ void RSAPubKey::Encode(const Nan::FunctionCallbackInfo<v8::Value>& info) {
   }
 
   std::string keyString;
-  auto privateKey = dynamic_cast<Botan::Private_Key*>(obj->key);
-  
-  if (!privateKey) {
+  if (!obj->privateKey) {
     info.GetReturnValue().SetUndefined();
     return;
   }
 
-  keyString = passwordString != "" ? Botan::PKCS8::PEM_encode(*privateKey, *obj->rng, passwordString) : Botan::PKCS8::PEM_encode(*privateKey);
-  keyString.append(Botan::X509::PEM_encode(*privateKey));
+  keyString = passwordString != "" ? Botan::PKCS8::PEM_encode(*obj->privateKey, *obj->rng, passwordString) : Botan::PKCS8::PEM_encode(*obj->privateKey);
+  keyString.append(Botan::X509::PEM_encode(*obj->privateKey));
   info.GetReturnValue().Set(Nan::New((char*) keyString.c_str(), keyString.size()).ToLocalChecked()); 
 }
 

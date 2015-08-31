@@ -6,7 +6,6 @@ describe('Paeonia', function() {
     rsaPubKey.generateKeyPair(function(err) {
       var pub = rsaPubKey.encode({encoding: 'PEM'});
       pub.indexOf('PUBLIC').should.not.be.equal(-1);
-      console.log(pub);
       done(err);     
     });
   });
